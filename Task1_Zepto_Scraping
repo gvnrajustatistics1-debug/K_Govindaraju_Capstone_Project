@@ -108,3 +108,205 @@ df.to_csv("outputs/cleaned_books.csv",index=False)
 print(df.head())
 
 print("Total Books =",len(df))
+
+#Database Creation.py
+import sqlite3
+import pandas as pd
+
+df=pd.read_csv("outputs/cleaned_books.csv")
+
+conn=sqlite3.connect("books.db")
+
+cursor=conn.cursor()
+
+cursor.execute("""
+
+CREATE TABLE IF NOT EXISTS categories(
+
+category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+category_name TEXT UNIQUE
+
+)
+
+""")
+
+cursor.execute("""
+
+CREATE TABLE IF NOT EXISTS books(
+
+book_id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+title TEXT,
+
+price_gbp REAL,
+
+price_inr REAL,
+
+rating INTEGER,
+
+in_stock INTEGER,
+
+category_id INTEGER,
+
+FOREIGN KEY(category_id)
+
+REFERENCES categories(category_id)
+
+)
+
+""")
+
+# Insert Categories
+
+cats=df["category"].unique()
+
+for c in cats:
+
+    cursor.execute(
+
+        "INSERT OR IGNORE INTO categories(category_name) VALUES(?)",(c,)
+
+    )
+
+conn.commit()
+
+cat_df=pd.read_sql("SELECT * FROM categories",conn)
+
+mapping=dict(zip(cat_df.category_name,cat_df.category_id))
+
+df["category_id"]=df["category"].map(mapping)
+
+book_df=df[[
+"title",
+"price_gbp",
+"price_inr",
+"rating",
+"in_stock",
+"category_id"
+]]
+
+book_df.to_sql(
+"books",
+conn,
+if_exists="append",
+index=False
+)
+
+conn.commit()
+
+print("Database Created Successfully")
+
+conn.close()
+
+# Queries.py
+import sqlite3
+import pandas as pd
+
+conn=sqlite3.connect("books.db")
+
+queries={
+
+"Q1":
+
+"""
+SELECT title,price_gbp
+FROM books
+WHERE rating>=4;
+""",
+
+"Q2":
+
+"""
+SELECT title,price_gbp
+FROM books
+ORDER BY price_gbp DESC
+LIMIT 10;
+""",
+
+"Q3":
+
+"""
+SELECT DISTINCT rating
+FROM books;
+""",
+
+"Q4":
+
+"""
+SELECT title,price_gbp
+FROM books
+WHERE price_gbp
+BETWEEN 20 AND 40;
+""",
+
+"Q5":
+
+"""
+SELECT
+b.title,
+c.category_name,
+b.rating,
+b.price_gbp
+
+FROM books b
+
+JOIN categories c
+
+ON b.category_id=c.category_id
+
+ORDER BY c.category_name,b.rating DESC
+
+LIMIT 10;
+
+"""
+}
+
+for name,query in queries.items():
+
+    print("\n",name)
+
+    result=pd.read_sql(query,conn)
+
+    print(result)
+
+    result.to_csv(f"outputs/{name}.csv",index=False)
+
+# read_sql examples
+
+df1=pd.read_sql(queries["Q2"],conn)
+
+df2=pd.read_sql(queries["Q5"],conn)
+
+print(df1.head())
+
+print(df2.head())
+
+# merge equivalent
+
+books=pd.read_sql("SELECT * FROM books",conn)
+
+cats=pd.read_sql("SELECT * FROM categories",conn)
+
+merged=pd.merge(
+
+books,
+
+cats,
+
+on="category_id"
+
+)
+
+merged=merged[[
+"title",
+"category_name",
+"rating",
+"price_gbp"
+]]
+
+print(merged.head())
+
+merged.to_csv("outputs/merge_output.csv",index=False)
+
+conn.close()

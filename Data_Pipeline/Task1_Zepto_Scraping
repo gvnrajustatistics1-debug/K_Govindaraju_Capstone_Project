@@ -297,7 +297,6 @@ cats,
 on="category_id"
 
 )
-
 merged=merged[[
 "title",
 "category_name",
